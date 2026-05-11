@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>亚马逊美国站 · 单品上架测算（离线单行表 · 与构建版同步）</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7fb;
+        --surface: #ffffff;
+        --border: #e2e5ee;
+        --text: #141824;
+        --muted: #5c6478;
+        --accent: #1b5cff;
+        --positive: #0d7a4f;
+        --negative: #b42318;
+        --radius: 12px;
+        --shadow: 0 1px 2px rgba(20, 24, 36, 0.06), 0 6px 20px rgba(20, 24, 36, 0.06);
+        font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+        line-height: 1.45;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+      }
+      a {
+        color: var(--accent);
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      .app-shell {
+        max-width: 100%;
+        margin: 0 auto;
+        padding: 16px 12px 40px;
+      }
+      .app-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        align-items: flex-end;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .app-title h1 {
+        margin: 0 0 4px;
+        font-size: 1.2rem;
+        font-weight: 650;
+      }
+      .app-title p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.85rem;
+        max-width: 720px;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .toolbar button {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 0.82rem;
+        box-shadow: var(--shadow);
+      }
+      .toolbar button.primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: transparent;
+      }
+      .matrix-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+      .matrix-table {
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: max-content;
+        font-size: 11.5px;
+      }
+      .matrix-table th,
+      .matrix-table td {
+        border-bottom: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+        padding: 4px 6px;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+      .matrix-table thead th {
+        background: #f1f3fa;
+        font-weight: 650;
+        position: sticky;
+        top: 0;
+        z-index: 3;
+      }
+      .matrix-table .sticky-col {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #fff;
+        box-shadow: 4px 0 8px rgba(20, 24, 36, 0.04);
+      }
+      .matrix-table thead .sticky-col {
+        z-index: 4;
+        background: #eef1fb;
+      }
+      .matrix-table input[type="text"],
+      .matrix-table input[type="number"],
+      .matrix-table select {
+        width: 100%;
+        min-width: 0;
+        max-width: 92px;
+        padding: 3px 5px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        font-size: 11.5px;
+      }
+      .matrix-table input.narrow {
+        max-width: 64px;
+      }
+      .matrix-table input.wide-label {
+        max-width: 140px;
+      }
+      .matrix-table td.read {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .matrix-table td.read-strong {
+        font-weight: 650;
+        font-variant-numeric: tabular-nums;
+      }
+      .matrix-table .pos {
+        color: var(--positive);
+      }
+      .matrix-table .neg {
+        color: var(--negative);
+      }
+      .row-actions {
+        display: flex;
+        gap: 4px;
+      }
+      .icon-btn {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        padding: 2px 4px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      .icon-btn:hover {
+        background: #eef1f7;
+        color: var(--text);
+      }
+      .note-bar {
+        margin-top: 10px;
+        font-size: 0.78rem;
+        color: var(--muted);
+        line-height: 1.55;
+        max-width: 1100px;
+      }
+      .note-bar a {
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>
+      <div style="padding: 24px; font-family: system-ui, sans-serif">
+        请启用浏览器 JavaScript，否则测算表无法显示。
+      </div>
+    </noscript>
+    <div id="shell" class="app-shell">
+      <header id="hdr" class="app-header"></header>
+      <div class="matrix-wrap" id="mw">
+        <p id="boot-hint" style="padding: 16px; color: #5c6478; margin: 0; font-size: 13px">
+          <strong style="color: #b42318">请勿在 Cursor / VS Code 内置预览里打开本页</strong>（iframe +
+          file:// 会报 “Unsafe attempt to load URL…”）。请右键文件 → 用 Chrome 或 Edge 打开，或双击「打开-离线版.bat」。脚本加载后本段文字会被表格替换。
+        </p>
+      </div>
+      <p id="notes" class="note-bar"></p>
+    </div>
+    <input type="file" id="import-json" accept="application/json" hidden />
+    <script>
+      (function () {
+        if (typeof Object.assign !== "function") {
+          Object.assign = function (target) {
+            if (target == null) throw new TypeError("Cannot convert undefined or null to object");
+            var to = Object(target);
+            for (var i = 1; i < arguments.length; i++) {
+              var nextSource = arguments[i];
+              if (nextSource != null) {
+                for (var nextKey in nextSource) {
+                  if (Object.prototype.hasOwnProperty.call(nextSource, nextKey)) {
+                    to[nextKey] = nextSource[nextKey];
+                  }
+                }
+              }
+            }
+            return to;
+          };
+        }
+        if (typeof Math.cbrt !== "function") {
+          Math.cbrt = function (x) {
+            x = Number(x);
+            if (!isFinite(x) || x === 0) return x;
+            return x >= 0 ? Math.pow(x, 1 / 3) : -Math.pow(-x, 1 / 3);
+          };
+        }
+
+        var AMAZON_FBA_FEE_HELP =
+          "https://sellercentral.amazon.com/help/hub/reference/external/GABBX6GZPA8MSZGW";
+        var US_FBA_DIMENSIONAL_WEIGHT_DIVISOR = 139;
+        var STORAGE_KEY = "amz-us-calculator-scenarios-v2";
+        var STORAGE_LEGACY = "amz-us-calculator-scenarios-v1";
+
+        var RESOLVED_TIER_LABEL = {
+          small_standard: "小号标准件",
+          large_standard: "大号标准件",
+          large_bulky: "大号大件",
+          extra_large_50_to_70: "超大件 50–70 lb",
+          extra_large_70_to_150: "超大件 70–150 lb",
+          extra_large_over_150: "超大件 >150 lb",
+        };
+
+        var TIER_OPTIONS = [
+          { value: "auto", label: "自动" },
+          { value: "small_standard", label: "小号标准" },
+          { value: "large_standard", label: "大号标准" },
+          { value: "large_bulky", label: "大号大件" },
+          { value: "extra_large_50_to_70", label: "超大50–70" },
+          { value: "extra_large_70_to_150", label: "超大70–150" },
+          { value: "extra_large_over_150", label: "超大>150" },
+        ];
+
+        function escapeHtml(s) {
+          return String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        /** HTML 属性用：去掉换行，避免 title="" 断行把后续 DOM 全部解析坏（表现为整页空白） */
+        function safeAttr(s) {
+          return escapeHtml(String(s).replace(/\r?\n/g, " "));
+        }
+
+        function storageGet(key) {
+          try {
+            return localStorage.getItem(key);
+          } catch (e) {
+            return null;
+          }
+        }
+
+        function storageSet(key, value) {
+          try {
+            localStorage.setItem(key, value);
+          } catch (e) {}
+        }
+
+        function fmtUsd(n) {
+          var sign = n < 0 ? "\u2212" : "";
+          return sign + "$" + Math.abs(n).toFixed(2);
+        }
+
+        function fmtPct(n) {
+          return n.toFixed(1) + "%";
+        }
+
+        /** file:// 打开时通常不是 Secure Context，crypto.randomUUID() 会抛错导致整页空白 */
+        function newId() {
+          try {
+            if (typeof crypto !== "undefined" && crypto.randomUUID) {
+              return crypto.randomUUID();
+            }
+          } catch (e) {}
+          return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+            var r = (Math.random() * 16) | 0;
+            var v = c === "x" ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+          });
+        }
+
+        function sortedDims(lengthIn, widthIn, heightIn) {
+          var d = [lengthIn, widthIn, heightIn].sort(function (a, b) {
+            return b - a;
+          });
+          return [d[0], d[1], d[2]];
+        }
+
+        function lengthPlusGirth(longest, median, shortest) {
+          return longest + 2 * (median + shortest);
+        }
+
+        function volumeCuInches(lengthIn, widthIn, heightIn) {
+          return Math.max(0, lengthIn) * Math.max(0, widthIn) * Math.max(0, heightIn);
+        }
+
+        function dimensionalWeightLb(cuIn) {
+          if (cuIn <= 0) return 0;
+          return cuIn / US_FBA_DIMENSIONAL_WEIGHT_DIVISOR;
+        }
+
+        function volumeCuFtFromInches(lengthIn, widthIn, heightIn) {
+          return volumeCuInches(lengthIn, widthIn, heightIn) / 1728;
+        }
+
+        function classifyTierAuto(lengthIn, widthIn, heightIn, billableShippingLb) {
+          var sd = sortedDims(lengthIn, widthIn, heightIn);
+          var longest = sd[0];
+          var median = sd[1];
+          var shortest = sd[2];
+          var shipOz = Math.ceil(billableShippingLb * 16 - 1e-9);
+
+          var fitsSmallEnvelope =
+            longest <= 15 &&
+            median <= 12 &&
+            shortest <= 0.75 &&
+            shipOz <= 16 &&
+            billableShippingLb <= 1;
+
+          var fitsLargeStandardDims = longest <= 18 && median <= 14 && shortest <= 8;
+
+          var fitsBulkyDims =
+            longest <= 59 &&
+            median <= 33 &&
+            shortest <= 33 &&
+            lengthPlusGirth(longest, median, shortest) <= 130;
+
+          if (fitsSmallEnvelope) return "small_standard";
+          if (fitsLargeStandardDims && billableShippingLb <= 20) return "large_standard";
+          if (fitsBulkyDims && billableShippingLb <= 50) return "large_bulky";
+          if (billableShippingLb <= 70) return "extra_large_50_to_70";
+          if (billableShippingLb <= 150) return "extra_large_70_to_150";
+          return "extra_large_over_150";
+        }
+
+        var GENERAL_SMALL_STANDARD_BRACKETS = [
+          { maxOz: 2, fee: 3.06 },
+          { maxOz: 4, fee: 3.15 },
+          { maxOz: 6, fee: 3.24 },
+          { maxOz: 8, fee: 3.33 },
+          { maxOz: 10, fee: 3.43 },
+          { maxOz: 12, fee: 3.53 },
+          { maxOz: 14, fee: 3.6 },
+          { maxOz: 16, fee: 3.65 },
+        ];
+
+        var GENERAL_LARGE_STANDARD_BRACKETS = [
+          { maxOz: 4, fee: 3.68 },
+          { maxOz: 8, fee: 3.9 },
+          { maxOz: 12, fee: 4.15 },
+          { maxOz: 16, fee: 4.55 },
+          { maxOz: 20, fee: 4.99 },
+          { maxOz: 24, fee: 5.37 },
+          { maxOz: 28, fee: 5.52 },
+          { maxOz: 32, fee: 5.77 },
+          { maxOz: 36, fee: 5.87 },
+          { maxOz: 40, fee: 6.05 },
+          { maxOz: 44, fee: 6.21 },
+          { maxOz: 48, fee: 6.62 },
+        ];
+
+        function feeGeneralSmallStandard(shipOz) {
+          for (var i = 0; i < GENERAL_SMALL_STANDARD_BRACKETS.length; i++) {
+            if (shipOz <= GENERAL_SMALL_STANDARD_BRACKETS[i].maxOz)
+              return GENERAL_SMALL_STANDARD_BRACKETS[i].fee;
+          }
+          return GENERAL_SMALL_STANDARD_BRACKETS[GENERAL_SMALL_STANDARD_BRACKETS.length - 1].fee;
+        }
+
+        function feeGeneralLargeStandard(shipOz) {
+          var maxLargeOz = 20 * 16;
+          var cappedOz = Math.min(shipOz, maxLargeOz);
+          var i;
+          for (i = 0; i < GENERAL_LARGE_STANDARD_BRACKETS.length; i++) {
+            if (cappedOz <= GENERAL_LARGE_STANDARD_BRACKETS[i].maxOz)
+              return GENERAL_LARGE_STANDARD_BRACKETS[i].fee;
+          }
+          var baseOz = 48;
+          var baseFee = 6.92;
+          var stepOz = 4;
+          var stepUsd = 0.08;
+          if (cappedOz <= baseOz)
+            return GENERAL_LARGE_STANDARD_BRACKETS[GENERAL_LARGE_STANDARD_BRACKETS.length - 1].fee;
+          var extraOz = cappedOz - baseOz;
+          var steps = Math.ceil(extraOz / stepOz);
+          return baseFee + steps * stepUsd;
+        }
+
+        function feeApparelSmallStandard(shipOz) {
+          if (shipOz <= 4) return 3.27;
+          if (shipOz <= 12) return feeGeneralSmallStandard(shipOz);
+          if (shipOz <= 16) return 3.98;
+          return feeGeneralSmallStandard(shipOz);
+        }
+
+        function feeApparelLargeStandard(shipOz) {
+          var general = feeGeneralLargeStandard(shipOz);
+          if (shipOz > 16 && shipOz <= 24) return 5.9;
+          if (shipOz > 40 && shipOz <= 48) return 6.81;
+          return general;
+        }
+
+        function fulfillmentFeeForTier(tier, billableShippingLb, billableShippingOz, category) {
+          switch (tier) {
+            case "small_standard":
+              return (category === "apparel" ? feeApparelSmallStandard : feeGeneralSmallStandard)(
+                billableShippingOz
+              );
+            case "large_standard":
+              return (category === "apparel" ? feeApparelLargeStandard : feeGeneralLargeStandard)(
+                billableShippingOz
+              );
+            case "large_bulky":
+              return 9.61 + Math.max(0, billableShippingLb - 1) * 0.38;
+            case "extra_large_50_to_70":
+              return 40.12 + Math.max(0, billableShippingLb - 51) * 0.75;
+            case "extra_large_70_to_150":
+              return 54.81 + Math.max(0, billableShippingLb - 71) * 0.75;
+            case "extra_large_over_150":
+              return 54.81 + Math.max(0, billableShippingLb - 71) * 0.75;
+            default:
+              return feeGeneralLargeStandard(billableShippingOz);
+          }
+        }
+
+        function estimateUsFbaFulfillment(input) {
+          var notes = [];
+          var volumeCuIn = volumeCuInches(input.lengthIn, input.widthIn, input.heightIn);
+          var volumeCuFt = volumeCuIn / 1728;
+          var dimLb = dimensionalWeightLb(volumeCuIn);
+          var itemLb = Math.max(0, input.itemWeightLb);
+          var billableShippingLb = Math.max(itemLb, dimLb);
+          var billableShippingOz = Math.ceil(billableShippingLb * 16 - 1e-9);
+
+          var resolvedTier;
+          var tierSource;
+          if (input.tierOverride !== "auto") {
+            resolvedTier = input.tierOverride;
+            tierSource = "override";
+            notes.push("尺寸档位为手动指定；若与包装尺寸/计费重不匹配，仅用于敏感性对比。");
+          } else {
+            resolvedTier = classifyTierAuto(
+              input.lengthIn,
+              input.widthIn,
+              input.heightIn,
+              billableShippingLb
+            );
+            tierSource = "auto";
+          }
+
+          if (input.category === "apparel") {
+            notes.push(
+              "服饰类部分重量段使用公开费率节点，其余回退非服饰阶梯；请务必与后台 Revenue Calculator 核对。"
+            );
+          }
+
+          notes.push(
+            "体积重=" +
+              dimLb.toFixed(3) +
+              " lb（÷" +
+              US_FBA_DIMENSIONAL_WEIGHT_DIVISOR +
+              "）；计费重=" +
+              billableShippingLb.toFixed(3) +
+              " lb（" +
+              billableShippingOz +
+              " oz，max(实重,体积重)，盎司向上取整用于标准件查档）。"
+          );
+
+          var fulfillmentFeeUsd = fulfillmentFeeForTier(
+            resolvedTier,
+            billableShippingLb,
+            billableShippingOz,
+            input.category
+          );
+
+          return {
+            volumeCuIn: volumeCuIn,
+            volumeCuFt: volumeCuFt,
+            dimensionalWeightLb: dimLb,
+            itemWeightLb: itemLb,
+            billableShippingLb: billableShippingLb,
+            billableShippingOz: billableShippingOz,
+            resolvedTier: resolvedTier,
+            tierSource: tierSource,
+            fulfillmentFeeUsd: fulfillmentFeeUsd,
+            notes: notes,
+          };
+        }
+
+        function toRatio(value) {
+          if (!isFinite(value)) return 0;
+          var v = Math.abs(value);
+          if (v > 1.000001) return Math.min(v / 100, 1);
+          return Math.min(v, 1);
+        }
+
+        function computeScenario(input) {
+          var promo = toRatio(input.promoPct);
+          var refund = toRatio(input.refundPct);
+          var referral = toRatio(input.referralPct);
+          var adRate = toRatio(input.adPctOfEffectivePrice);
+
+          var fbaEstimate = estimateUsFbaFulfillment({
+            lengthIn: input.lengthIn,
+            widthIn: input.widthIn,
+            heightIn: input.heightIn,
+            itemWeightLb: input.itemWeightLb,
+            category: input.productFeeCategory,
+            tierOverride: input.sizeTierMode,
+          });
+
+          var effectiveFbaFulfillmentUsd =
+            input.fbaFeeMode === "manual"
+              ? Math.max(0, input.fbaFulfillmentUsd)
+              : fbaEstimate.fulfillmentFeeUsd;
+
+          var effectivePriceUsd = Math.max(0, input.listPriceUsd) * (1 - promo);
+          var referralFeeUsd = effectivePriceUsd * referral;
+          var refundReserveUsd = effectivePriceUsd * refund;
+          var netRevenueUsd = effectivePriceUsd - refundReserveUsd;
+
+          var storageCuFt = input.useManualProductCuFt
+            ? Math.max(0, input.productCuFt)
+            : volumeCuFtFromInches(input.lengthIn, input.widthIn, input.heightIn);
+
+          var storagePerUnitUsd = 0;
+          if (input.useStorageOverride && input.storagePerUnitUsdOverride >= 0) {
+            storagePerUnitUsd = input.storagePerUnitUsdOverride;
+          } else if (input.monthlySalesUnits > 0 && input.avgMonthlyInventoryUnits >= 0) {
+            var monthlyFee =
+              input.avgMonthlyInventoryUnits *
+              Math.max(0, storageCuFt) *
+              Math.max(0, input.storageUsdPerCuFtPerMonth);
+            storagePerUnitUsd = monthlyFee / input.monthlySalesUnits;
+          }
+
+          var fx = input.fxUsdcny > 0 ? input.fxUsdcny : 7.2;
+          var landedCogsUsd = input.useCnyCogs
+            ? Math.max(0, input.cogsCny) / fx
+            : Math.max(0, input.cogsUsd);
+
+          var landedTotalUsd =
+            landedCogsUsd +
+            Math.max(0, input.freightPerUnitUsd) +
+            Math.max(0, input.dutyPerUnitUsd) +
+            Math.max(0, input.convertPerUnitUsd);
+
+          var adCostUsd = effectivePriceUsd * adRate;
+
+          var amazonFeesUsd =
+            referralFeeUsd +
+            effectiveFbaFulfillmentUsd +
+            Math.max(0, input.inboundPerUnitUsd) +
+            storagePerUnitUsd;
+
+          var contributionUsd =
+            effectivePriceUsd -
+            refundReserveUsd -
+            amazonFeesUsd -
+            landedTotalUsd -
+            adCostUsd -
+            Math.max(0, input.otherMktPerUnitUsd) -
+            Math.max(0, input.oneOffAmortizedPerUnitUsd);
+
+          var contributionOnEffectivePct =
+            effectivePriceUsd > 0 ? (contributionUsd / effectivePriceUsd) * 100 : 0;
+          var contributionOnNetPct =
+            netRevenueUsd > 0 ? (contributionUsd / netRevenueUsd) * 100 : 0;
+
+          return {
+            effectivePriceUsd: effectivePriceUsd,
+            referralFeeUsd: referralFeeUsd,
+            refundReserveUsd: refundReserveUsd,
+            netRevenueUsd: netRevenueUsd,
+            storagePerUnitUsd: storagePerUnitUsd,
+            landedCogsUsd: landedTotalUsd,
+            adCostUsd: adCostUsd,
+            amazonFeesUsd: amazonFeesUsd,
+            contributionUsd: contributionUsd,
+            contributionOnEffectivePct: contributionOnEffectivePct,
+            contributionOnNetPct: contributionOnNetPct,
+            fbaEstimate: fbaEstimate,
+            effectiveFbaFulfillmentUsd: effectiveFbaFulfillmentUsd,
+          };
+        }
+
+        function migrateLegacyRow(raw) {
+          var patch = {};
+          if (typeof raw.fbaFulfillmentUsd === "number" && raw.fbaFeeMode === undefined) {
+            patch.fbaFeeMode = "manual";
+          }
+          if (raw.lengthIn === undefined && typeof raw.productCuFt === "number") {
+            var cuFt = raw.productCuFt;
+            if (cuFt > 0) {
+              var side = Math.cbrt(cuFt * 1728);
+              patch.lengthIn = Number(side.toFixed(2));
+              patch.widthIn = Number(side.toFixed(2));
+              patch.heightIn = Number(side.toFixed(2));
+            }
+          }
+          return patch;
+        }
+
+        function defaultScenario(partial) {
+          return Object.assign(
+            {
+              id: newId(),
+              label: "新方案",
+              lengthIn: 10,
+              widthIn: 8,
+              heightIn: 2,
+              itemWeightLb: 1,
+              productFeeCategory: "general",
+              sizeTierMode: "auto",
+              fbaFeeMode: "estimate",
+              listPriceUsd: 29.99,
+              promoPct: 10,
+              refundPct: 5,
+              referralPct: 15,
+              fbaFulfillmentUsd: 5.5,
+              inboundPerUnitUsd: 0.35,
+              useStorageOverride: false,
+              storagePerUnitUsdOverride: 0,
+              avgMonthlyInventoryUnits: 500,
+              monthlySalesUnits: 300,
+              storageUsdPerCuFtPerMonth: 0.78,
+              useManualProductCuFt: false,
+              productCuFt: 0.08,
+              useCnyCogs: true,
+              cogsCny: 45,
+              cogsUsd: 6,
+              fxUsdcny: 7.2,
+              freightPerUnitUsd: 1.2,
+              dutyPerUnitUsd: 0,
+              convertPerUnitUsd: 0.1,
+              adPctOfEffectivePrice: 12,
+              otherMktPerUnitUsd: 0.15,
+              oneOffAmortizedPerUnitUsd: 0.2,
+            },
+            partial || {}
+          );
+        }
+
+        function loadRows() {
+          try {
+            var raw = storageGet(STORAGE_KEY);
+            var parsed = null;
+            if (raw) {
+              var arr = JSON.parse(raw);
+              if (Array.isArray(arr) && arr.length) parsed = arr;
+            }
+            if (!parsed) {
+              var legacy = storageGet(STORAGE_LEGACY);
+              if (legacy) {
+                var arr2 = JSON.parse(legacy);
+                if (Array.isArray(arr2) && arr2.length) {
+                  parsed = arr2.map(function (row) {
+                    return Object.assign(defaultScenario(), migrateLegacyRow(row), row, {
+                      id: row.id || newId(),
+                    });
+                  });
+                }
+              }
+            }
+            if (!parsed || parsed.length === 0) return null;
+            return parsed.map(function (row) {
+              return Object.assign(
+                defaultScenario(),
+                migrateLegacyRow(row),
+                row,
+                { id: row.id || newId() }
+              );
+            });
+          } catch (e) {
+            return null;
+          }
+        }
+
+        function saveRows(rows) {
+          storageSet(STORAGE_KEY, JSON.stringify(rows));
+        }
+
+        var rows;
+        try {
+          rows = loadRows();
+          if (!rows || !rows.length) rows = [defaultScenario()];
+        } catch (bootRowsErr) {
+          rows = [defaultScenario()];
+        }
+
+        function findRow(id) {
+          for (var i = 0; i < rows.length; i++) if (rows[i].id === id) return rows[i];
+          return null;
+        }
+
+        function patchRow(id, patch) {
+          var r = findRow(id);
+          if (!r) return;
+          Object.assign(r, patch);
+          saveRows(rows);
+          renderAll();
+        }
+
+        function num(v, d) {
+          var n = Number(v);
+          return isFinite(n) ? n : d;
+        }
+
+        function renderHdr() {
+          document.getElementById("hdr").innerHTML =
+            '<div class="app-title"><h1>亚马逊美国站 · 单品上架测算（离线单行表）</h1><p>与 Vite 构建版逻辑同步：英寸尺寸、体积重÷' +
+            US_FBA_DIMENSIONAL_WEIGHT_DIVISOR +
+            "、计费重=max(实重,体积重)、FBA 分档估算。数据存 localStorage key <code>" +
+            escapeHtml(STORAGE_KEY) +
+            '</code>。</p></div><div class="toolbar">' +
+            '<button type="button" class="primary" data-action="add">新建方案</button>' +
+            '<button type="button" data-action="csv">导出 CSV</button>' +
+            '<button type="button" data-action="json">导出 JSON</button>' +
+            '<button type="button" data-action="import">导入 JSON</button></div>';
+        }
+
+        function tierOptionsHtml(current) {
+          return TIER_OPTIONS.map(function (o) {
+            return (
+              '<option value="' +
+              o.value +
+              '"' +
+              (o.value === current ? " selected" : "") +
+              ">" +
+              escapeHtml(o.label) +
+              "</option>"
+            );
+          }).join("");
+        }
+
+        function renderMatrix() {
+          var mw = document.getElementById("mw");
+          var ae = document.activeElement;
+          var fr = ae && ae.getAttribute && ae.getAttribute("data-row-id");
+          var ff = ae && ae.getAttribute && ae.getAttribute("data-field");
+
+          var thead =
+            "<thead><tr>" +
+            '<th class="sticky-col">方案 / 操作</th>' +
+            "<th>L in</th><th>W in</th><th>H in</th><th>实重 lb</th>" +
+            '<th title="体积重 = in³ ÷ 139">体积重 lb</th>' +
+            '<th title="max(实重,体积重)">计费 lb</th>' +
+            '<th title="仓储用体积">体积 ft³</th>' +
+            "<th>档位</th><th>分档结果</th><th>品类</th><th>FBA</th>" +
+            "<th>FBA 手写 $</th><th>FBA 采用 $</th>" +
+            "<th>标价 $</th><th>折%</th><th>退%</th><th>佣%</th><th>入库 $</th>" +
+            "<th>月均库存</th><th>月销</th><th>仓储 $/ft³/月</th>" +
+            '<th title="手填体积 ft³">手动物体积</th><th>体积手填 ft³</th>' +
+            "<th>手写仓储</th><th>仓储$/件</th><th>CNY采购</th><th>采购</th><th>汇率</th>" +
+            "<th>头程 $</th><th>关税 $</th><th>二次 $</th><th>广告%</th><th>营销 $</th><th>摊销 $</th>" +
+            "<th>贡献 $</th><th>毛利%</th></tr></thead>";
+
+          var body = rows
+            .map(function (r) {
+              var res = computeScenario(r);
+              var fe = res.fbaEstimate;
+              var tierName = RESOLVED_TIER_LABEL[fe.resolvedTier] || String(fe.resolvedTier || "");
+              var tierHint =
+                fe.tierSource === "override" ? "手选·" + tierName : "自动·" + tierName;
+              var cuShow = r.useManualProductCuFt ? r.productCuFt : fe.volumeCuFt;
+              var cny = r.useCnyCogs;
+              var contribCls = res.contributionUsd >= 0 ? "pos" : "neg";
+              return (
+                '<tr data-row-id="' +
+                escapeHtml(r.id) +
+                '">' +
+                '<td class="sticky-col">' +
+                '<input class="wide-label" type="text" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="label" value="' +
+                escapeHtml(r.label) +
+                '" />' +
+                '<div class="row-actions">' +
+                '<button type="button" class="icon-btn" data-action="dup" data-row-id="' +
+                escapeHtml(r.id) +
+                '" title="复制">\u29c9</button>' +
+                '<button type="button" class="icon-btn" data-action="del" data-row-id="' +
+                escapeHtml(r.id) +
+                '" title="删除">\u2715</button>' +
+                "</div></td>" +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="lengthIn" value="' +
+                r.lengthIn +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="widthIn" value="' +
+                r.widthIn +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="heightIn" value="' +
+                r.heightIn +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.001" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="itemWeightLb" value="' +
+                r.itemWeightLb +
+                '" /></td>' +
+                '<td class="read">' +
+                fe.dimensionalWeightLb.toFixed(3) +
+                "</td>" +
+                '<td class="read">' +
+                fe.billableShippingLb.toFixed(3) +
+                "</td>" +
+                '<td class="read">' +
+                cuShow.toFixed(4) +
+                "</td>" +
+                '<td><select data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="sizeTierMode">' +
+                tierOptionsHtml(r.sizeTierMode) +
+                "</select></td>" +
+                '<td class="read" title="' +
+                safeAttr(fe.notes.join(" · ")) +
+                '">' +
+                escapeHtml(tierHint) +
+                "</td>" +
+                '<td><select data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="productFeeCategory">' +
+                '<option value="general"' +
+                (r.productFeeCategory === "general" ? " selected" : "") +
+                ">一般</option>" +
+                '<option value="apparel"' +
+                (r.productFeeCategory === "apparel" ? " selected" : "") +
+                ">服饰</option></select></td>" +
+                '<td><select data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="fbaFeeMode">' +
+                '<option value="estimate"' +
+                (r.fbaFeeMode === "estimate" ? " selected" : "") +
+                ">估算</option>" +
+                '<option value="manual"' +
+                (r.fbaFeeMode === "manual" ? " selected" : "") +
+                '">手写</option></select></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="fbaFulfillmentUsd" value="' +
+                r.fbaFulfillmentUsd +
+                '"' +
+                (r.fbaFeeMode !== "manual" ? " disabled" : "") +
+                " /></td>" +
+                '<td class="read-strong ' +
+                contribCls +
+                '">' +
+                fmtUsd(res.effectiveFbaFulfillmentUsd) +
+                "</td>" +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="listPriceUsd" value="' +
+                r.listPriceUsd +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.1" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="promoPct" value="' +
+                r.promoPct +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.1" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="refundPct" value="' +
+                r.refundPct +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.1" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="referralPct" value="' +
+                r.referralPct +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="inboundPerUnitUsd" value="' +
+                r.inboundPerUnitUsd +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="1" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="avgMonthlyInventoryUnits" value="' +
+                r.avgMonthlyInventoryUnits +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="1" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="monthlySalesUnits" value="' +
+                r.monthlySalesUnits +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="storageUsdPerCuFtPerMonth" value="' +
+                r.storageUsdPerCuFtPerMonth +
+                '" /></td>' +
+                '<td><input type="checkbox" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-checkbox="useManualProductCuFt"' +
+                (r.useManualProductCuFt ? " checked" : "") +
+                " /></td>" +
+                '<td><input class="narrow" type="number" min="0" step="0.001" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="productCuFt" value="' +
+                r.productCuFt +
+                '"' +
+                (!r.useManualProductCuFt ? " disabled" : "") +
+                " /></td>" +
+                '<td><input type="checkbox" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-checkbox="useStorageOverride"' +
+                (r.useStorageOverride ? " checked" : "") +
+                " /></td>" +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="storagePerUnitUsdOverride" value="' +
+                r.storagePerUnitUsdOverride +
+                '"' +
+                (!r.useStorageOverride ? " disabled" : "") +
+                " /></td>" +
+                '<td><input type="checkbox" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-checkbox="useCnyCogs"' +
+                (r.useCnyCogs ? " checked" : "") +
+                " /></td>" +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="' +
+                (cny ? "cogsCny" : "cogsUsd") +
+                '" value="' +
+                (cny ? r.cogsCny : r.cogsUsd) +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.0001" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="fxUsdcny" value="' +
+                r.fxUsdcny +
+                '"' +
+                (!cny ? " disabled" : "") +
+                " /></td>" +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="freightPerUnitUsd" value="' +
+                r.freightPerUnitUsd +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="dutyPerUnitUsd" value="' +
+                r.dutyPerUnitUsd +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="convertPerUnitUsd" value="' +
+                r.convertPerUnitUsd +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.1" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="adPctOfEffectivePrice" value="' +
+                r.adPctOfEffectivePrice +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="otherMktPerUnitUsd" value="' +
+                r.otherMktPerUnitUsd +
+                '" /></td>' +
+                '<td><input class="narrow" type="number" min="0" step="0.01" data-row-id="' +
+                escapeHtml(r.id) +
+                '" data-field="oneOffAmortizedPerUnitUsd" value="' +
+                r.oneOffAmortizedPerUnitUsd +
+                '" /></td>' +
+                '<td class="read-strong ' +
+                contribCls +
+                '">' +
+                fmtUsd(res.contributionUsd) +
+                "</td>" +
+                '<td class="read-strong ' +
+                contribCls +
+                '">' +
+                fmtPct(res.contributionOnEffectivePct) +
+                "</td></tr>"
+              );
+            })
+            .join("");
+
+          mw.innerHTML =
+            '<table class="matrix-table">' + thead + "<tbody>" + body + "</tbody></table>";
+
+          if (fr && ff) {
+            var sel =
+              '[data-row-id="' +
+              fr.replace(/\\/g, "\\\\").replace(/"/g, '\\"') +
+              '"][data-field="' +
+              ff.replace(/\\/g, "\\\\").replace(/"/g, '\\"') +
+              '"]';
+            var el = mw.querySelector(sel);
+            if (el && el.focus) {
+              el.focus();
+              try {
+                if (el.select && el.type === "text" && ff === "label") el.select();
+              } catch (e) {}
+            }
+          }
+        }
+
+        function renderNotes() {
+          document.getElementById("notes").innerHTML =
+            '官方费率与尺寸分档规则以 Seller Central 为准： <a href="' +
+            AMAZON_FBA_FEE_HELP +
+            '" target="_blank" rel="noreferrer">' +
+            escapeHtml(AMAZON_FBA_FEE_HELP) +
+            "</a>。服饰部分区间近似；不确定请用「FBA·手写」填 Revenue Calculator。";
+        }
+
+        function renderAll() {
+          var hdr = document.getElementById("hdr");
+          var mwEl = document.getElementById("mw");
+          var notesEl = document.getElementById("notes");
+          if (!hdr || !mwEl || !notesEl) {
+            throw new Error("页面缺少 #hdr / #mw / #notes 节点，HTML 可能损坏或非本文件。");
+          }
+          renderHdr();
+          renderMatrix();
+          renderNotes();
+        }
+
+        function addRow() {
+          rows.push(defaultScenario({ label: "方案 " + rows.length }));
+          saveRows(rows);
+          renderAll();
+        }
+
+        function dupRow(id) {
+          var src = findRow(id);
+          if (!src) return;
+          var row = Object.assign({}, src, { id: newId(), label: src.label + "（副本）" });
+          rows.push(row);
+          saveRows(rows);
+          renderAll();
+        }
+
+        function delRow(id) {
+          rows = rows.filter(function (r) {
+            return r.id !== id;
+          });
+          if (!rows.length) rows = [defaultScenario()];
+          saveRows(rows);
+          renderAll();
+        }
+
+        function exportJson() {
+          var blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = "amz-us-scenarios-" + new Date().toISOString().slice(0, 10) + ".json";
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+
+        function exportCsv() {
+          var header = [
+            "label",
+            "lengthIn",
+            "widthIn",
+            "heightIn",
+            "itemWeightLb",
+            "dimWeightLb",
+            "billableLb",
+            "cuFt",
+            "resolvedTier",
+            "tierMode",
+            "feeCategory",
+            "fbaMode",
+            "fbaUsd",
+            "listPriceUsd",
+            "promoPct",
+            "refundPct",
+            "referralPct",
+            "inboundPerUnitUsd",
+            "contributionUsd",
+            "marginPct",
+          ];
+          var lines = rows.map(function (r) {
+            var res = computeScenario(r);
+            var fe = res.fbaEstimate;
+            return [
+              r.label,
+              r.lengthIn,
+              r.widthIn,
+              r.heightIn,
+              r.itemWeightLb,
+              fe.dimensionalWeightLb.toFixed(4),
+              fe.billableShippingLb.toFixed(4),
+              fe.volumeCuFt.toFixed(4),
+              fe.resolvedTier,
+              r.sizeTierMode,
+              r.productFeeCategory,
+              r.fbaFeeMode,
+              res.effectiveFbaFulfillmentUsd.toFixed(4),
+              r.listPriceUsd,
+              r.promoPct,
+              r.refundPct,
+              r.referralPct,
+              r.inboundPerUnitUsd,
+              res.contributionUsd.toFixed(4),
+              res.contributionOnEffectivePct.toFixed(4),
+            ]
+              .map(function (cell) {
+                return '"' + String(cell).replace(/"/g, '""') + '"';
+              })
+              .join(",");
+          });
+          var csv = [header.join(",")].concat(lines).join("\n");
+          var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement("a");
+          a.href = url;
+          a.download = "amz-us-summary-" + new Date().toISOString().slice(0, 10) + ".csv";
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+
+        function importJsonFile(file) {
+          var reader = new FileReader();
+          reader.onload = function () {
+            try {
+              var parsed = JSON.parse(String(reader.result));
+              if (!Array.isArray(parsed)) throw new Error("not array");
+              rows = parsed.map(function (r) {
+                return Object.assign(defaultScenario(), r, { id: r.id || newId() });
+              });
+              saveRows(rows);
+              renderAll();
+            } catch (e) {
+              alert("导入失败：请检查 JSON 是否为方案数组");
+            }
+          };
+          reader.readAsText(file);
+        }
+
+        document.getElementById("shell").addEventListener("click", function (e) {
+          var t = e.target;
+          if (!t || !t.getAttribute) return;
+          var act = t.getAttribute("data-action");
+          if (act === "add") addRow();
+          else if (act === "csv") exportCsv();
+          else if (act === "json") exportJson();
+          else if (act === "import") document.getElementById("import-json").click();
+          else if (act === "dup") dupRow(t.getAttribute("data-row-id"));
+          else if (act === "del") delRow(t.getAttribute("data-row-id"));
+        });
+
+        document.getElementById("import-json").addEventListener("change", function (e) {
+          var f = e.target.files && e.target.files[0];
+          if (f) importJsonFile(f);
+          e.target.value = "";
+        });
+
+        document.getElementById("shell").addEventListener("input", function (e) {
+          var el = e.target;
+          var rid = el.getAttribute && el.getAttribute("data-row-id");
+          var field = el.getAttribute && el.getAttribute("data-field");
+          if (!rid || !field) return;
+          var r = findRow(rid);
+          if (!r) return;
+          if (field === "label") r[field] = String(el.value);
+          else r[field] = num(el.value, 0);
+          saveRows(rows);
+          renderAll();
+        });
+
+        document.getElementById("shell").addEventListener("change", function (e) {
+          var el = e.target;
+          var rid = el.getAttribute && el.getAttribute("data-row-id");
+          if (!rid) return;
+          var r = findRow(rid);
+          if (!r) return;
+
+          var cb = el.getAttribute && el.getAttribute("data-checkbox");
+          if (cb) {
+            r[cb] = !!el.checked;
+            saveRows(rows);
+            renderAll();
+            return;
+          }
+
+          var field = el.getAttribute && el.getAttribute("data-field");
+          if (!field) return;
+
+          if (el.tagName === "SELECT") {
+            if (field === "sizeTierMode") r.sizeTierMode = el.value;
+            else if (field === "productFeeCategory") r.productFeeCategory = el.value;
+            else if (field === "fbaFeeMode") r.fbaFeeMode = el.value;
+            saveRows(rows);
+            renderAll();
+          }
+        });
+
+        function showFatal(err) {
+          var msg = err && err.stack ? String(err.stack) : String(err || "unknown error");
+          var hint =
+            '<div style="padding:16px;font-family:system-ui,sans-serif;max-width:900px">' +
+            '<p style="color:#b42318;font-weight:700;margin:0 0 8px">测算表未能启动</p>' +
+            '<p style="color:#5c6478;margin:0 0 12px;font-size:13px">请尝试：① 用 Chrome / Edge 最新版打开本文件 ② 换路径（例如放到桌面再打开）③ 下方若提到 localStorage，说明浏览器禁止本地文件写存储，可改用「打开-构建版.bat」运行 dist。</p>' +
+            '<pre style="background:#f6f7fb;border:1px solid #e2e5ee;padding:12px;overflow:auto;font-size:12px;white-space:pre-wrap">' +
+            msg.replace(/</g, "&lt;") +
+            "</pre></div>";
+          var mw = document.getElementById("mw");
+          if (mw) mw.innerHTML = hint;
+          else document.body.insertAdjacentHTML("beforeend", hint);
+        }
+
+        try {
+          renderAll();
+        } catch (bootErr) {
+          showFatal(bootErr);
+        }
+      })();
+    </script>
+  </body>
+</html>
