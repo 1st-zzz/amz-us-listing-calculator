@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Amazon FBA 利润测算器 Pro（全列）</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #f5f6fa;
+        color: #222;
+      }
+      .container {
+        padding: 16px;
+        max-width: 100%;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 1.2rem;
+      }
+      .sub {
+        color: #555;
+        font-size: 13px;
+        margin-bottom: 14px;
+        max-width: 960px;
+      }
+      .toolbar {
+        margin-bottom: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      button {
+        padding: 8px 14px;
+        border: none;
+        border-radius: 8px;
+        background: #2563eb;
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+      }
+      button.secondary {
+        background: #475569;
+      }
+      button.ghost {
+        background: #e2e8f0;
+        color: #334155;
+      }
+      .wrap {
+        overflow-x: auto;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fff;
+      }
+      table {
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: max-content;
+        font-size: 11px;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #e5e7eb;
+        border-right: 1px solid #e5e7eb;
+        padding: 4px 5px;
+        text-align: center;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+      th {
+        background: #eef2ff;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+      th.sticky,
+      td.sticky {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        background: #fff;
+        box-shadow: 3px 0 6px rgba(0, 0, 0, 0.04);
+      }
+      thead th.sticky {
+        z-index: 3;
+        background: #eef2ff;
+      }
+      input[type="text"],
+      input[type="number"],
+      select {
+        min-width: 72px;
+        width: 86px;
+        max-width: 96px;
+        padding: 3px 4px;
+        box-sizing: border-box;
+        font-size: 11px;
+      }
+      input.wide {
+        width: 76px;
+        max-width: 88px;
+      }
+      .scheme-cell {
+        text-align: center;
+      }
+      .scheme-row {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+      }
+      .scheme-row input[type="text"] {
+        min-width: 72px;
+        width: 86px;
+        max-width: 96px;
+      }
+      .scheme-row button.ghost {
+        margin: 0;
+        padding: 3px 8px;
+        font-size: 11px;
+        flex-shrink: 0;
+      }
+      th.sticky:first-child,
+      td.sticky:first-child {
+        min-width: 200px;
+      }
+      .fx-status {
+        font-size: 12px;
+        color: #64748b;
+        margin-left: 4px;
+      }
+      input[type="checkbox"] {
+        width: auto;
+      }
+      .read {
+        color: #64748b;
+        font-variant-numeric: tabular-nums;
+      }
+      .pos {
+        color: #15803d;
+        font-weight: 700;
+      }
+      .neg {
+        color: #b91c1c;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Amazon FBA 利润测算器 Pro（全列）</h1>
+      <p class="sub">
+        FBA 按标价三档与品类/危险品自动算配送费；默认含 <strong>3.5%</strong> 燃油附加。尺寸输入支持 <strong>英寸/厘米</strong>，重量输入支持 <strong>磅/千克/盎司</strong>，系统会自动换算为英寸与磅参与体积重和分档计算。<strong>USD/CNY</strong>单列可填，点<strong>刷新汇率</strong>将接口最新价写入每一行并保存。部署：GitHub Pages 选
+        <code>/docs</code>。费率请以
+        <a id="helpLink" href="#" target="_blank" rel="noreferrer">Seller Central</a> 为准。请用系统浏览器打开，勿用 Cursor 内置预览。
+      </p>
+
+      <div class="toolbar">
+        <button type="button" id="btnAdd">新建方案</button>
+        <button type="button" class="secondary" id="btnCsv">导出 CSV</button>
+        <button type="button" class="secondary" id="btnJson">导出 JSON</button>
+        <button type="button" class="secondary" id="btnImport">导入 JSON</button>
+        <button type="button" class="secondary" id="btnFx">刷新汇率</button>
+        <span id="fxStatus" class="fx-status"></span>
+      </div>
+
+      <div class="wrap">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th class="sticky">方案 / 操作</th>
+              <th>L</th>
+              <th>W</th>
+              <th>H</th>
+              <th>尺寸单位</th>
+              <th>实重</th>
+              <th>重量单位</th>
+              <th>体积重 lb</th>
+              <th>计费 lb</th>
+              <th>体积 ft³</th>
+              <th>档位</th>
+              <th>分档结果</th>
+              <th>品类</th>
+              <th>危险品</th>
+              <th
+                title="勾选后按旺季估算：在表内配送费（含燃油附加）上乘系数（默认 1.2，见 pro-calc.js 的 FULFILLMENT_PEAK_SEASON_MULTIPLIER）"
+              >
+                旺季配送
+              </th>
+              <th>FBA 采用 $</th>
+              <th>标价 $</th>
+              <th>折%</th>
+              <th>退%</th>
+              <th>佣%</th>
+              <th>入库 $</th>
+              <th>月均库存</th>
+              <th>月销</th>
+              <th>仓储 $/ft³/月</th>
+              <th
+                title="勾选后：在你填的「仓储 $/ft³/月」（淡季口径）上乘倍率。倍率=2026 标准件/大件官方淡旺仓储单价比，并按「分档结果」用 2025 旺季/非旺季配送费倍率在同类内微调。"
+              >
+                旺季仓储
+              </th>
+              <th>仓储 $/件</th>
+              <th>CNY</th>
+              <th>采购¥</th>
+              <th title="勾选 CNY 时由 采购¥ ÷ 汇率 自动计算，随二者变化">采购$</th>
+              <th title="USD→CNY，点工具栏「刷新汇率」拉最新价写入本列">汇率 USD/CNY</th>
+              <th>头程 $</th>
+              <th>关税 $</th>
+              <th>二次 $</th>
+              <th>广告%</th>
+              <th>营销 $</th>
+              <th>摊销 $</th>
+              <th>贡献 $</th>
+              <th>毛利%</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script src="pro-calc.js"></script>
+    <script>
+      var STORAGE_KEY = "amz-fba-calculator-pro-matrix-v1";
+      var STORAGE_LEGACY_SIMPLE = "amz-fba-calculator-pro-v1";
+
+      function newId() {
+        try {
+          if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+        } catch (e) {}
+        return "id-" + Date.now() + "-" + ((Math.random() * 1e9) | 0);
+      }
+
+      function escapeAttr(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/"/g, "&quot;")
+          .replace(/</g, "&lt;");
+      }
+
+      function escapeText(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;");
+      }
+
+      var P = window.AmzProCalc;
+      if (!P) {
+        document.body.innerHTML = "<p style=\"padding:24px\">缺少 pro-calc.js，请与 index.html 同目录部署。</p>";
+        throw new Error("AmzProCalc missing");
+      }
+
+      document.getElementById("helpLink").href = P.AMAZON_FBA_FEE_HELP;
+
+      var TIER_OPTS = [
+        { v: "auto", l: "自动" },
+        { v: "small_standard", l: "小号标准" },
+        { v: "large_standard", l: "大号标准" },
+        { v: "small_bulky", l: "小号大件" },
+        { v: "large_bulky", l: "大号大件" },
+        { v: "extra_large_0_to_50", l: "超大0–50" },
+        { v: "extra_large_50_to_70", l: "超大50–70" },
+        { v: "extra_large_70_to_150", l: "超大70–150" },
+        { v: "extra_large_over_150", l: "超大>150" },
+      ];
+      var DIM_UNIT_OPTS = [
+        { v: "in", l: "英寸" },
+        { v: "cm", l: "厘米" },
+      ];
+      var WEIGHT_UNIT_OPTS = [
+        { v: "lb", l: "磅" },
+        { v: "kg", l: "千克" },
+        { v: "oz", l: "盎司" },
+      ];
+
+      var rows = [];
+      var liveFxUsdCny = 0;
+      var liveFxDate = "";
+
+      function fetchLiveFx() {
+        var el = document.getElementById("fxStatus");
+        if (el) el.textContent = "汇率加载中…";
+        fetch("https://api.frankfurter.app/latest?from=USD&to=CNY")
+          .then(function (res) {
+            return res.json();
+          })
+          .then(function (data) {
+            if (data && data.rates && data.rates.CNY != null) {
+              liveFxUsdCny = Number(data.rates.CNY);
+              liveFxDate = data.date || "";
+              var i;
+              for (i = 0; i < rows.length; i++) {
+                rows[i].fxUsdcny = liveFxUsdCny;
+                if (rows[i].useCnyCogs) {
+                  var fxx = rows[i].fxUsdcny > 0 ? rows[i].fxUsdcny : 7.2;
+                  rows[i].cogsUsd = Math.max(0, rows[i].cogsCny) / fxx;
+                }
+              }
+              saveData();
+              if (el)
+                el.textContent =
+                  "已更新 USD/CNY " +
+                  liveFxUsdCny.toFixed(4) +
+                  (liveFxDate ? " · " + liveFxDate : "");
+              render();
+              return;
+            }
+            throw new Error("no rate");
+          })
+          .catch(function () {
+            liveFxUsdCny = 0;
+            if (el) el.textContent = "汇率拉取失败，请检查网络后点刷新";
+            render();
+          });
+      }
+
+      function migrateSimpleToFull(obj) {
+        if (obj.listPriceUsd != null || obj.lengthIn != null) return obj;
+        return {
+          label: obj.name || "产品",
+          listPriceUsd: Number(obj.price) || 0,
+          cogsUsd: Number(obj.cost) || 0,
+          useCnyCogs: false,
+          itemWeightLb: Number(obj.weight) || 0,
+          sizeTierMode: obj.tier === "large_standard" ? "large_standard" : "small_standard",
+          dg: !!obj.dg,
+          referralPct: obj.referralPct != null ? Number(obj.referralPct) : 15,
+        };
+      }
+
+      function loadData() {
+        try {
+          var raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            var arr = JSON.parse(raw);
+            if (Array.isArray(arr) && arr.length) {
+              rows = arr.map(function (r) {
+                return P.normalizeRow(migrateSimpleToFull(r), newId);
+              });
+              return;
+            }
+          }
+          var leg = localStorage.getItem(STORAGE_LEGACY_SIMPLE);
+          if (leg) {
+            var arr2 = JSON.parse(leg);
+            if (Array.isArray(arr2) && arr2.length) {
+              rows = arr2.map(function (r) {
+                return P.normalizeRow(migrateSimpleToFull(r), newId);
+              });
+              return;
+            }
+          }
+        } catch (e) {}
+        rows = [P.defaultRow(newId)];
+      }
+
+      function saveData() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+        } catch (e) {}
+      }
+
+      function optionSelectHtml(options, val) {
+        return options.map(function (o) {
+          return (
+            "<option value=\"" +
+            o.v +
+            "\"" +
+            (o.v === val ? " selected" : "") +
+            ">" +
+            o.l +
+            "</option>"
+          );
+        }).join("");
+      }
+
+      function tierSelectHtml(val) {
+        return optionSelectHtml(TIER_OPTS, val);
+      }
+
+      function dimUnitSelectHtml(val) {
+        return optionSelectHtml(DIM_UNIT_OPTS, val);
+      }
+
+      function weightUnitSelectHtml(val) {
+        return optionSelectHtml(WEIGHT_UNIT_OPTS, val);
+      }
+
+      function convertLengthDisplay(value, fromUnit, toUnit) {
+        var v = Number(value) || 0;
+        var inches = fromUnit === "cm" ? v / 2.54 : v;
+        var out = toUnit === "cm" ? inches * 2.54 : inches;
+        return Number(out.toFixed(toUnit === "cm" ? 2 : 4));
+      }
+
+      function convertWeightDisplay(value, fromUnit, toUnit) {
+        var v = Number(value) || 0;
+        var lb = fromUnit === "kg" ? v / 0.45359237 : fromUnit === "oz" ? v / 16 : v;
+        var out = toUnit === "kg" ? lb * 0.45359237 : toUnit === "oz" ? lb * 16 : lb;
+        return Number(out.toFixed(toUnit === "oz" ? 2 : 4));
+      }
+
+      function render() {
+        var tb = document.getElementById("tbody");
+        var html = rows
+          .map(function (r) {
+            var res = P.computeRow(r);
+            var fe = res.fbaEstimate;
+            var tierLabel =
+              (fe.tierSource === "override" ? "手选·" : "自动·") +
+              (P.RESOLVED_TIER_LABEL[fe.resolvedTier] || fe.resolvedTier);
+            var tip = escapeAttr(res.fbaSourceLabel + " | " + fe.notes.join(" "));
+            var cls = res.contributionUsd >= 0 ? "pos" : "neg";
+            var id = escapeAttr(r.id);
+            function num(name, val, step, dis) {
+              return (
+                "<input type=\"number\" step=\"" +
+                step +
+                "\" data-id=\"" +
+                id +
+                "\" data-k=\"" +
+                name +
+                "\" value=\"" +
+                val +
+                "\"" +
+                (dis ? " disabled" : "") +
+                "/>"
+              );
+            }
+            function chk(name, on) {
+              return (
+                "<input type=\"checkbox\" data-id=\"" +
+                id +
+                "\" data-k=\"" +
+                name +
+                "\"" +
+                (on ? " checked" : "") +
+                "/>"
+              );
+            }
+            return (
+              "<tr>" +
+              "<td class=\"sticky scheme-cell\"><span class=\"scheme-row\"><input type=\"text\" data-id=\"" +
+              id +
+              "\" data-k=\"label\" value=\"" +
+              escapeAttr(r.label) +
+              "\"/><button type=\"button\" class=\"ghost\" data-act=\"dup\" data-id=\"" +
+              id +
+              "\">复制</button><button type=\"button\" class=\"ghost\" data-act=\"del\" data-id=\"" +
+              id +
+              "\">删</button></span></td>" +
+              "<td>" +
+              num("lengthIn", r.lengthIn, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              num("widthIn", r.widthIn, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              num("heightIn", r.heightIn, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              "<select data-id=\"" +
+              id +
+              "\" data-k=\"dimUnit\">" +
+              dimUnitSelectHtml(r.dimUnit) +
+              "</select></td>" +
+              "<td>" +
+              num("itemWeightLb", r.itemWeightLb, "0.001", false) +
+              "</td>" +
+              "<td>" +
+              "<select data-id=\"" +
+              id +
+              "\" data-k=\"weightUnit\">" +
+              weightUnitSelectHtml(r.weightUnit) +
+              "</select></td>" +
+              "<td class=\"read\">" +
+              fe.dimensionalWeightLb.toFixed(3) +
+              "</td>" +
+              "<td class=\"read\">" +
+              fe.billableShippingLb.toFixed(3) +
+              "</td>" +
+              "<td class=\"read\">" +
+              res.storageCuFtDisplay.toFixed(4) +
+              "</td>" +
+              "<td><select data-id=\"" +
+              id +
+              "\" data-k=\"sizeTierMode\">" +
+              tierSelectHtml(r.sizeTierMode) +
+              "</select></td>" +
+              "<td class=\"read\" title=\"" +
+              tip +
+              "\">" +
+              escapeText(tierLabel) +
+              "</td>" +
+              "<td><select data-id=\"" +
+              id +
+              "\" data-k=\"productFeeCategory\"><option value=\"general\"" +
+              (r.productFeeCategory === "general" ? " selected" : "") +
+              ">一般</option><option value=\"apparel\"" +
+              (r.productFeeCategory === "apparel" ? " selected" : "") +
+              ">服饰</option></select></td>" +
+              "<td>" +
+              chk("dg", r.dg) +
+              "</td>" +
+              "<td>" +
+              chk("peakFulfillmentSeason", r.peakFulfillmentSeason) +
+              "</td>" +
+              "<td class=\"read " +
+              cls +
+              "\">$" +
+              res.effectiveFbaFulfillmentUsd.toFixed(2) +
+              "</td>" +
+              "<td>" +
+              num("listPriceUsd", r.listPriceUsd, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              num("promoPct", r.promoPct, "0.1", false) +
+              "</td>" +
+              "<td>" +
+              num("refundPct", r.refundPct, "0.1", false) +
+              "</td>" +
+              "<td>" +
+              num("referralPct", r.referralPct, "0.1", false) +
+              "</td>" +
+              "<td>" +
+              num("inboundPerUnitUsd", r.inboundPerUnitUsd, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              num("avgMonthlyInventoryUnits", r.avgMonthlyInventoryUnits, "1", false) +
+              "</td>" +
+              "<td>" +
+              num("monthlySalesUnits", r.monthlySalesUnits, "1", false) +
+              "</td>" +
+              "<td>" +
+              num("storageUsdPerCuFtPerMonth", r.storageUsdPerCuFtPerMonth, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              chk("peakStorageSeason", r.peakStorageSeason) +
+              "</td>" +
+              "<td class=\"read\"" +
+              (r.peakStorageSeason && res.storagePeakNote
+                ? " title=\"" + escapeAttr(res.storagePeakNote) + "\""
+                : "") +
+              ">" +
+              res.storagePerUnitUsd.toFixed(4) +
+              "</td>" +
+              "<td>" +
+              chk("useCnyCogs", r.useCnyCogs) +
+              "</td>" +
+              "<td>" +
+              num("cogsCny", r.cogsCny, "0.01", !r.useCnyCogs) +
+              "</td>" +
+              (r.useCnyCogs
+                ? "<td class=\"read\" title=\"采购¥ ÷ 汇率 USD/CNY，随采购¥与汇率自动更新\">" +
+                  res.cogsUsdUsed.toFixed(4) +
+                  "</td>"
+                : "<td>" + num("cogsUsd", r.cogsUsd, "0.01", false) + "</td>") +
+              "<td>" +
+              num("fxUsdcny", r.fxUsdcny, "0.0001", false) +
+              "</td>" +
+              "<td>" +
+              num("freightPerUnitUsd", r.freightPerUnitUsd, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              num("dutyPerUnitUsd", r.dutyPerUnitUsd, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              num("convertPerUnitUsd", r.convertPerUnitUsd, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              num("adPctOfEffectivePrice", r.adPctOfEffectivePrice, "0.1", false) +
+              "</td>" +
+              "<td>" +
+              num("otherMktPerUnitUsd", r.otherMktPerUnitUsd, "0.01", false) +
+              "</td>" +
+              "<td>" +
+              num("oneOffAmortizedPerUnitUsd", r.oneOffAmortizedPerUnitUsd, "0.01", false) +
+              "</td>" +
+              "<td class=\"" +
+              cls +
+              "\">$" +
+              res.contributionUsd.toFixed(2) +
+              "</td>" +
+              "<td class=\"" +
+              cls +
+              "\">" +
+              res.contributionOnEffectivePct.toFixed(1) +
+              "%</td></tr>"
+            );
+          })
+          .join("");
+        tb.innerHTML = html;
+      }
+
+      function findRow(id) {
+        for (var i = 0; i < rows.length; i++) if (rows[i].id === id) return rows[i];
+        return null;
+      }
+
+      function patch(id, key, val) {
+        var r = findRow(id);
+        if (!r) return;
+        if (key === "dg" || key === "useCnyCogs" || key === "peakStorageSeason" || key === "peakFulfillmentSeason") {
+          r[key] = !!val;
+        } else if (key === "label") {
+          r[key] = String(val);
+        } else if (key === "dimUnit") {
+          var oldDimUnit = r.dimUnit || "in";
+          var newDimUnit = String(val) === "cm" ? "cm" : "in";
+          if (oldDimUnit !== newDimUnit) {
+            r.lengthIn = convertLengthDisplay(r.lengthIn, oldDimUnit, newDimUnit);
+            r.widthIn = convertLengthDisplay(r.widthIn, oldDimUnit, newDimUnit);
+            r.heightIn = convertLengthDisplay(r.heightIn, oldDimUnit, newDimUnit);
+          }
+          r.dimUnit = newDimUnit;
+        } else if (key === "weightUnit") {
+          var oldWeightUnit = r.weightUnit || "lb";
+          var newWeightUnit =
+            String(val) === "kg" ? "kg" : String(val) === "oz" ? "oz" : "lb";
+          if (oldWeightUnit !== newWeightUnit) {
+            r.itemWeightLb = convertWeightDisplay(r.itemWeightLb, oldWeightUnit, newWeightUnit);
+          }
+          r.weightUnit = newWeightUnit;
+        } else if (
+          key === "sizeTierMode" ||
+          key === "productFeeCategory"
+        ) {
+          r[key] = String(val);
+        } else {
+          r[key] = Number(val);
+        }
+        if (r.useCnyCogs) {
+          var fxx = r.fxUsdcny > 0 ? r.fxUsdcny : 7.2;
+          r.cogsUsd = Math.max(0, r.cogsCny) / fxx;
+        }
+        saveData();
+        render();
+      }
+
+      document.getElementById("tbody").addEventListener("change", function (e) {
+        var t = e.target;
+        var id = t.getAttribute("data-id");
+        var k = t.getAttribute("data-k");
+        if (!id || !k) return;
+        if (t.type === "checkbox") {
+          patch(id, k, t.checked);
+        } else if (t.tagName === "SELECT") {
+          patch(id, k, t.value);
+        } else {
+          patch(id, k, t.value);
+        }
+      });
+
+      document.getElementById("tbody").addEventListener("input", function (e) {
+        var t = e.target;
+        if (t.tagName !== "INPUT" || t.type === "checkbox") return;
+        var id = t.getAttribute("data-id");
+        var k = t.getAttribute("data-k");
+        if (!id || !k) return;
+        var r = findRow(id);
+        if (!r) return;
+        if (k === "label") r[k] = t.value;
+        else r[k] = Number(t.value);
+        saveData();
+      });
+
+      document.getElementById("tbody").addEventListener(
+        "blur",
+        function (e) {
+          var t = e.target;
+          if (t.tagName !== "INPUT" || t.type === "checkbox") return;
+          render();
+        },
+        true
+      );
+
+      document.getElementById("btnAdd").onclick = function () {
+        var nr = P.defaultRow(newId);
+        if (liveFxUsdCny > 0) nr.fxUsdcny = liveFxUsdCny;
+        rows.push(nr);
+        saveData();
+        render();
+      };
+
+      document.getElementById("tbody").addEventListener("click", function (e) {
+        var t = e.target;
+        if (t.getAttribute("data-act") === "dup") {
+          var id = t.getAttribute("data-id");
+          var src = findRow(id);
+          if (!src) return;
+          var c = {};
+          var k;
+          for (k in src) {
+            if (Object.prototype.hasOwnProperty.call(src, k)) c[k] = src[k];
+          }
+          c.id = newId();
+          c.label = (src.label || "方案") + "（副本）";
+          rows.push(P.normalizeRow(c, newId));
+          saveData();
+          render();
+        }
+        if (t.getAttribute("data-act") === "del") {
+          var id2 = t.getAttribute("data-id");
+          rows = rows.filter(function (x) {
+            return x.id !== id2;
+          });
+          if (!rows.length) rows.push(P.defaultRow(newId));
+          saveData();
+          render();
+        }
+      });
+
+      document.getElementById("btnJson").onclick = function () {
+        var blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "fba-pro-matrix.json";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      };
+
+      document.getElementById("btnCsv").onclick = function () {
+        var headers = [
+          "label",
+          "lengthIn",
+          "widthIn",
+          "heightIn",
+          "dimUnit",
+          "itemWeightLb",
+          "weightUnit",
+          "dg",
+          "peakFulfillmentSeason",
+          "peakStorageSeason",
+          "listPriceUsd",
+          "promoPct",
+          "refundPct",
+          "referralPct",
+          "fxUsdcny",
+          "fbaEffectiveUsd",
+          "contributionUsd",
+          "marginPct",
+        ];
+        var lines = rows.map(function (r) {
+          var res = P.computeRow(r);
+          return [
+            r.label,
+            r.lengthIn,
+            r.widthIn,
+            r.heightIn,
+            r.dimUnit,
+            r.itemWeightLb,
+            r.weightUnit,
+            r.dg,
+            r.peakFulfillmentSeason,
+            r.peakStorageSeason,
+            r.listPriceUsd,
+            r.promoPct,
+            r.refundPct,
+            r.referralPct,
+            res.fxUsdcnyUsed.toFixed(4),
+            res.effectiveFbaFulfillmentUsd.toFixed(4),
+            res.contributionUsd.toFixed(4),
+            res.contributionOnEffectivePct.toFixed(4),
+          ]
+            .map(function (cell) {
+              return "\"" + String(cell).replace(/"/g, "\"\"") + "\"";
+            })
+            .join(",");
+        });
+        var csv = [headers.join(",")].concat(lines).join("\n");
+        var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "fba-pro-matrix.csv";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      };
+
+      document.getElementById("btnImport").onclick = function () {
+        document.getElementById("importFile").click();
+      };
+
+      document.getElementById("importFile").onchange = function (e) {
+        var f = e.target.files && e.target.files[0];
+        if (!f) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var arr = JSON.parse(String(reader.result));
+            if (!Array.isArray(arr)) throw new Error("need array");
+            rows = arr.map(function (r) {
+              return P.normalizeRow(migrateSimpleToFull(r), newId);
+            });
+            saveData();
+            render();
+          } catch (err) {
+            alert("导入失败");
+          }
+        };
+        reader.readAsText(f);
+        e.target.value = "";
+      };
+
+      loadData();
+      render();
+      fetchLiveFx();
+      document.getElementById("btnFx").onclick = function () {
+        fetchLiveFx();
+      };
+    </script>
+  </body>
+</html>
